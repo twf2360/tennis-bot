@@ -10,7 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let chat_id = env::var("TELEGRAM_CHAT_ID")?.parse::<i64>()?;
 
         let summary = "🎾 *Daily Tennis Round\\-Up*\n\n\
-            this is a test message!";
+            this is a test message";
 
         bot.send_message(ChatId(chat_id), summary)
             .parse_mode(ParseMode::MarkdownV2)
