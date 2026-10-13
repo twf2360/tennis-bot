@@ -23,5 +23,6 @@ jobs:
         env:
           TELOXIDE_TOKEN: ${{ secrets.TELOXIDE_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TENNIS_API_KEY: ${{ secrets.TENNIS_API_KEY }}
           RUN_CRON: "true"
         run: cargo run --release
