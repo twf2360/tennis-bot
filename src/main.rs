@@ -2,7 +2,8 @@ use teloxide::prelude::*;
 use teloxide::types::ParseMode;
 use std::env;
 use chrono::Utc;
-use serde::Deserialize;
+mod models;
+use models::MatchstatResponse;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -51,7 +52,7 @@ async fn fetch_tennis_scores() -> Result<String, Box<dyn std::error::Error>> {
 
     let mut message = format!("🎾 *Tennis Results for {}*\n\n", today);
 
-    if atp_data.result.is_empty() && wta_data.result.is_empty() {
+    if atp_data.data.is_empty() && wta_data.data.is_empty() {
         message.push_str("_No matches found for today across ATP or WTA\\._");
         return Ok(message);
     }
