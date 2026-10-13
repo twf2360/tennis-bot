@@ -40,14 +40,19 @@ async fn fetch_tennis_scores() -> Result<String, Box<dyn std::error::Error>> {
         client.get(&url_atp)
             .header("X-RapidAPI-Key", &api_key)
             .header("X-RapidAPI-Host", "tennis-api-atp-wta-itf.p.rapidapi.com")
+            .header("accept", "application/json")
             .send(),
         client.get(&url_wta)
             .header("X-RapidAPI-Key", &api_key)
             .header("X-RapidAPI-Host", "tennis-api-atp-wta-itf.p.rapidapi.com")
+            .header("accept", "application/json")
             .send()
     )?;
 
-    let atp_data: MatchstatResponse = res_atp.json().await?;
+    let response_text = res_atp.text().await?;
+    println!("Raw API Response: {}", response_text);
+
+    let atp_data: MatchstatResponse = serde_json::from_str(&response_text)?;
     let wta_data: MatchstatResponse = res_wta.json().await?;
 
     let mut message = format!("🎾 *Tennis Results for {}*\n\n", today);
