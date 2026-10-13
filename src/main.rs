@@ -26,19 +26,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[derive(Deserialize, Debug)]
-struct MatchstatResponse {
-    result: Vec<MatchItem>,
-}
-
-#[derive(Deserialize, Debug)]
-struct MatchItem {
-    tournament_name: Option<String>,
-    player1: Option<String>,
-    player2: Option<String>,
-    score: Option<String>,
-}
-
 async fn fetch_tennis_scores() -> Result<String, Box<dyn std::error::Error>> {
     let api_key = env::var("TENNIS_API_KEY")?;
     
@@ -69,13 +56,13 @@ async fn fetch_tennis_scores() -> Result<String, Box<dyn std::error::Error>> {
         return Ok(message);
     }
 
-    if !atp_data.result.is_empty() {
+    if !atp_data.data.is_empty() {
         message.push_str("🏆 *ATP Matches*\n");
-        for m in atp_data.result.iter().take(5) {
-            let tournament = m.tournament_name.clone().unwrap_or_else(|| "ATP Tour".into());
-            let p1 = m.player1.clone().unwrap_or_else(|| "Player 1".into());
-            let p2 = m.player2.clone().unwrap_or_else(|| "Player 2".into());
-            let score = m.score.clone().unwrap_or_else(|| "Score pending".into());
+        for m in atp_data.data.iter().take(5) {
+            let tournament = m.tournament.name.clone();
+            let p1 = m.player1.name.clone();
+            let p2 = m.player2.name.clone();
+            let score = m.result.clone().unwrap_or_else(|| "Score pending".into());
 
             let line = format!(
                 "• *{}* — {} d\\. {} __{}__\n",
@@ -89,13 +76,13 @@ async fn fetch_tennis_scores() -> Result<String, Box<dyn std::error::Error>> {
         message.push_str("\n");
     }
 
-    if !wta_data.result.is_empty() {
+    if !wta_data.data.is_empty() {
         message.push_str("🏆 *WTA Matches*\n");
-        for m in wta_data.result.iter().take(5) {
-            let tournament = m.tournament_name.clone().unwrap_or_else(|| "WTA Tour".into());
-            let p1 = m.player1.clone().unwrap_or_else(|| "Player 1".into());
-            let p2 = m.player2.clone().unwrap_or_else(|| "Player 2".into());
-            let score = m.score.clone().unwrap_or_else(|| "Score pending".into());
+        for m in wta_data.data.iter().take(5) {
+            let tournament = m.tournament.name.clone();
+            let p1 = m.player1.name.clone();
+            let p2 = m.player2.name.clone();
+            let score = m.result.clone().unwrap_or_else(|| "Score pending".into());
 
             let line = format!(
                 "• *{}* — {} d\\. {} __{}__\n",
