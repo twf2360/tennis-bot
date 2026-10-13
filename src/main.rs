@@ -31,73 +31,132 @@ async fn fetch_tennis_scores() -> Result<String, Box<dyn std::error::Error>> {
     let api_key = env::var("TENNIS_API_KEY")?;
     
     let today = Utc::now().format("%Y-%m-%d").to_string();
-    let url_atp = format!("https://tennis-api-atp-wta-itf.p.rapidapi.com/tennis/v2/atp/results/{}", today);
-    let url_wta = format!("https://tennis-api-atp-wta-itf.p.rapidapi.com/tennis/v2/wta/results/{}", today);
+    let url_atp = format!("https://tennis-api-atp-wta-itf.p.rapidapi.com/tennis/v2/atp/results/{}?pageSize=50", today);
+    let url_wta = format!("https://tennis-api-atp-wta-itf.p.rapidapi.com/tennis/v2/wta/results/{}?pageSize=50", today);
 
     let client = reqwest::Client::new();
     
-    let (res_atp, res_wta) = tokio::try_join!(
-        client.get(&url_atp)
-            .header("X-RapidAPI-Key", &api_key)
-            .header("X-RapidAPI-Host", "tennis-api-atp-wta-itf.p.rapidapi.com")
-            .header("accept", "application/json")
-            .send(),
-        client.get(&url_wta)
-            .header("X-RapidAPI-Key", &api_key)
-            .header("X-RapidAPI-Host", "tennis-api-atp-wta-itf.p.rapidapi.com")
-            .header("accept", "application/json")
-            .send()
-    )?;
+    let res_atp = client.get(&url_atp)
+        .header("X-RapidAPI-Key", &api_key)
+        .header("X-RapidAPI-Host", "tennis-api-atp-wta-itf.p.rapidapi.com")
+        .send()
+        .await?;
 
-    let response_text = res_atp.text().await?;
-    println!("Raw API Response: {}", response_text);
 
-    let atp_data: MatchstatResponse = serde_json::from_str(&response_text)?;
-    let wta_data: MatchstatResponse = res_wta.json().await?;
+    if res_atp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        return Ok("⚠️ *Rate limit hit on ATP endpoint*. Waiting for reset\\.".into());
+    }
 
-    let mut message = format!("🎾 *Tennis Results for {}*\n\n", today);
+    let atp_text = res_atp.text().await?;
+    let atp_data: MatchstatResponse = serde_json::from_str(&atp_text)?;
+
+    // pause briefly to respect per-second rate limits
+    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+
+    let res_wta = client.get(&url_wta)
+        .header("X-RapidAPI-Key", &api_key)
+        .header("X-RapidAPI-Host", "tennis-api-atp-wta-itf.p.rapidapi.com")
+        .send()
+        .await?;
+
+    if res_wta.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        return Ok("⚠️ *Rate limit hit on WTA endpoint*. Waiting for reset\\.".into());
+    }
+
+    let wta_text = res_wta.text().await?;
+    let wta_data: MatchstatResponse = serde_json::from_str(&wta_text)?;
+
+    let mut message = escape_markdown("🎾 *Tennis Results for today\n\n*");
 
     if atp_data.data.is_empty() && wta_data.data.is_empty() {
-        message.push_str("_No matches found for today across ATP or WTA\\._");
+        message.push_str("_No matches found for today across ATP or WTA._");
         return Ok(message);
     }
 
     if !atp_data.data.is_empty() {
         message.push_str("🏆 *ATP Matches*\n");
-        for m in atp_data.data.iter().take(5) {
+        let mut count = 0;
+
+        for m in atp_data.data.iter() {
             let tournament = m.tournament.name.clone();
-            let p1 = m.player1.name.clone();
-            let p2 = m.player2.name.clone();
+
+            if !is_desired_tier(&tournament) {
+                continue;
+            }
+
             let score = m.result.clone().unwrap_or_else(|| "Score pending".into());
 
+            let winner_name;
+            let loser_name;
+
+            if Some(m.player1.id) == m.match_winner {
+                winner_name = m.player1.name.clone();
+                loser_name = m.player2.name.clone();
+            } else if Some(m.player2.id) == m.match_winner {
+                winner_name = m.player2.name.clone();
+                loser_name = m.player1.name.clone();
+            } else {
+                winner_name = m.player1.name.clone();
+                loser_name = m.player2.name.clone();
+            }
+
             let line = format!(
-                "• *{}* — {} d\\. {} __{}__\n",
+                "• *{}* — *{}* d\\. {} __{}__\n",
                 escape_markdown(&tournament),
-                escape_markdown(&p1),
-                escape_markdown(&p2),
+                escape_markdown(&winner_name),
+                escape_markdown(&loser_name),
                 escape_markdown(&score)
             );
             message.push_str(&line);
+
+            count += 1;
+            if count >= 5 {
+                message.push_str("\n\n")
+                break;
+            }
         }
-        message.push_str("\n");
     }
 
     if !wta_data.data.is_empty() {
         message.push_str("🏆 *WTA Matches*\n");
-        for m in wta_data.data.iter().take(5) {
+        let mut count = 0;
+
+        for m in wta_data.data.iter() {
             let tournament = m.tournament.name.clone();
-            let p1 = m.player1.name.clone();
-            let p2 = m.player2.name.clone();
+
+            if !is_desired_tier(&tournament) {
+                continue;
+            }
+
             let score = m.result.clone().unwrap_or_else(|| "Score pending".into());
 
+            let winner_name;
+            let loser_name;
+
+            if Some(m.player1.id) == m.match_winner {
+                winner_name = m.player1.name.clone();
+                loser_name = m.player2.name.clone();
+            } else if Some(m.player2.id) == m.match_winner {
+                winner_name = m.player2.name.clone();
+                loser_name = m.player1.name.clone();
+            } else {
+                winner_name = m.player1.name.clone();
+                loser_name = m.player2.name.clone();
+            }
+
             let line = format!(
-                "• *{}* — {} d\\. {} __{}__\n",
+                "• *{}* — *{}* d\\. {} __{}__\n",
                 escape_markdown(&tournament),
-                escape_markdown(&p1),
-                escape_markdown(&p2),
+                escape_markdown(&winner_name),
+                escape_markdown(&loser_name),
                 escape_markdown(&score)
             );
             message.push_str(&line);
+
+            count += 1;
+            if count >= 5 {
+                break;
+            }
         }
     }
 
@@ -105,7 +164,7 @@ async fn fetch_tennis_scores() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 fn escape_markdown(input: &str) -> String {
-    let chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!'];
+    let chars = ['-','_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!'];
     let mut escaped = String::new();
     for c in input.chars() {
         if chars.contains(&c) {
@@ -114,4 +173,13 @@ fn escape_markdown(input: &str) -> String {
         escaped.push(c);
     }
     escaped
+}
+
+fn is_desired_tier(tournament_name: &str) -> bool {
+    let lower = tournament_name.to_lowercase();
+    
+    lower.contains("grand slam")
+        || lower.contains("masters")
+        || lower.contains("1000")
+        || lower.contains("500")
 }
