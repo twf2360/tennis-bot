@@ -111,7 +111,7 @@ async fn fetch_tennis_scores() -> Result<String, Box<dyn std::error::Error>> {
 
             count += 1;
             if count >= 5 {
-                message.push_str("\n\n")
+                message.push_str("\n\n");
                 break;
             }
         }
