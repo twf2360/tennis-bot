@@ -2,7 +2,7 @@ name: Daily Tennis Summary
 
 on:
   schedule:
-    - cron: '0 21 * * *'
+    - cron: '43 18 * * *'
   workflow_dispatch:
 
 jobs:
